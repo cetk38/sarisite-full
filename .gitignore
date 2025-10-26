@@ -1,0 +1,59 @@
+# ================================================================= #
+# === Ana .gitignore (PROJE Klasörünün Kök Dizininde Durmalı) === #
+# ================================================================= #
+
+# ## GENEL KURALLAR ##
+# macOS
+.DS_Store
+
+# Editör ve IDE dosyaları
+.vscode/
+
+# Güvenlik sertifikaları ve anahtarlar
+*.pem
+*.key
+
+# ## FRONTEND (sarisite) ##
+# Bağımlılıklar
+sarisite/node_modules/
+
+# Expo
+sarisite/.expo/
+sarisite/dist/
+sarisite/web-build/
+sarisite/expo-env.d.ts
+
+# Metro Bundler
+sarisite/.metro-health-check*
+
+# TypeScript build info
+sarisite/*.tsbuildinfo
+
+# Log Dosyaları
+sarisite/npm-debug.log*
+sarisite/yarn-debug.log*
+sarisite/yarn-error.log*
+
+
+# ## BACKEND (sarisite-backend) ##
+# Bağımlılıklar
+sarisite-backend/node_modules/
+
+# Çevre Değişkenleri (GİZLİ - ASLA COMMIT'LEME!)
+sarisite-backend/.env
+sarisite-backend/.env*.local
+
+# Log Dosyaları
+sarisite-backend/npm-debug.log*
+sarisite-backend/yarn-debug.log*
+sarisite-backend/yarn-error.log*
+
+
+# ## NATIVE BUILD DOSYALARI (Android/iOS) ##
+# Bu kurallar genellikle frontend klasörü içindir
+sarisite/.kotlin/
+sarisite/*.orig.*
+sarisite/*.jks
+sarisite/*.p8
+sarisite/*.p12
+sarisite/*.mobileprovision
