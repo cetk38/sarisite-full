@@ -3,6 +3,8 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { get } from '../utils/api';
 import theme from '../theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 
 export default function CategoryScreen({ route, navigation }) {
   const { categoryId, categoryName } = route.params;
@@ -33,6 +35,7 @@ export default function CategoryScreen({ route, navigation }) {
   }
 
   return (
+    <SafeAreaView style={{ flex: 1 }}>
     <View style={styles.container}>
       <Text style={styles.header}>{categoryName} İlanları</Text>
       <FlatList
@@ -42,6 +45,7 @@ export default function CategoryScreen({ route, navigation }) {
         contentContainerStyle={styles.list}
       />
     </View>
+    </SafeAreaView>
   );
 }
 
