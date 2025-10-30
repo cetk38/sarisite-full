@@ -68,7 +68,7 @@ function ProfileStack({ setIsAuthenticated }) {
   return (
     <Stack.Navigator>
       <Stack.Screen name="ProfileScreen" options={{ title: 'Profil' }}>
-        {() => <ProfileScreen setIsAuthenticated={setIsAuthenticated} />}
+           {props => <ProfileScreen {...props} setIsAuthenticated={setIsAuthenticated} />}
       </Stack.Screen>
       <Stack.Screen name="PublishedAds" component={PublishedAdsScreen} options={{ title: 'Yayındaki İlanlarım' }} />
       <Stack.Screen name="UnpublishedAds" component={UnpublishedAdsScreen} options={{ title: 'Yayında Olmayanlarım' }} />
