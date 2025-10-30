@@ -3,11 +3,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage'; // <-- EKS
 import Constants from 'expo-constants';
 
 // İşletim sistemine göre doğru IP adresini seçen akıllı mantık
-const host = Platform.OS === 'android'
-  ? '10.0.2.2'
-  : Constants.manifest?.debuggerHost?.split(':')[0] || 'localhost';
+// --- BURAYI DEĞİŞTİR --- ✅
+// 1. Adımda bulduğun IP adresini buraya tırnak içinde yaz:
+const YOUR_COMPUTER_IP = '192.168.1.243'; 
+// -----------------------
 
-export const BASE_URL = `http://${host}:3001/api`;
+export const BASE_URL = `http://${YOUR_COMPUTER_IP}:3001/api`;
 
 // --- DOSYANIN GERİ KALANI AYNI ---
 

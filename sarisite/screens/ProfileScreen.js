@@ -47,7 +47,13 @@ export default function ProfileScreen({ navigation, setIsAuthenticated }) {
       { name: 'Yayında Olmayanlar', icon: 'close-circle-outline', screen: 'UnpublishedAds' },
     ],
   },
-  
+  {
+    title: 'MESAJLAR VE BİLGİLENDİRMELER',
+    data: [
+      { name: 'Mesajlar', icon: 'message-text-outline', screen: 'Messages' },
+      { name: 'Bilgilendirmeler', icon: 'bell-outline', screen: 'Notifications', badge: unreadCount }, // <-- badge EKLENDİ
+    ],
+  },
   {
     title: 'FAVORİLER',
     data: [
@@ -63,13 +69,7 @@ export default function ProfileScreen({ navigation, setIsAuthenticated }) {
       { name: 'Ayarlar', icon: 'cog-outline', screen: 'Settings' },
     ],
   },
-  {
-    title: 'MESAJLAR VE BİLGİLENDİRMELER',
-    data: [
-      { name: 'Mesajlar', icon: 'message-text-outline', screen: 'Messages' },
-      { name: 'Bilgilendirmeler', icon: 'bell-outline', screen: 'Notifications', badge: unreadCount }, // <-- badge EKLENDİ
-    ],
-  },
+  
  ];
   // 4. ADIM: Arayüzü 'SectionList' ile oluşturuyoruz
   return (

@@ -4,8 +4,10 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { jwtDecode } from 'jwt-decode';
-import SelectionScreen from './screens/SelectionScreen';
-// --- ANA EKRANLAR ---
+import { MaterialCommunityIcons } from '@expo/vector-icons'; // İkonlar için
+import theme from './theme'; // Tema için
+
+// --- TÜM EKRANLARI İMPORT EDELİM ---
 import HomeScreen from './screens/HomeScreen';
 import AddAdScreen from './screens/AddAdScreen';
 import AdminScreen from './screens/AdminScreen';
@@ -15,10 +17,11 @@ import ProfileScreen from './screens/ProfileScreen';
 import AdListScreen from './screens/AdListScreen';
 import SubCategoryScreen from './screens/SubCategoryScreen';
 import VerificationPendingScreen from './screens/VerificationPendingScreen';
-import DetailScreen from './screens/DetailScreen'; // <-- İLAN DETAY SAYFASI ✅
+import DetailScreen from './screens/DetailScreen';
 import ChatScreen from './screens/ChatScreen';
+import SelectionScreen from './screens/SelectionScreen';
 
-// --- PROFİL ALT EKRANLARI ---
+// Profil Alt Ekranları
 import PublishedAdsScreen from './screens/profile/PublishedAdsScreen';
 import UnpublishedAdsScreen from './screens/profile/UnpublishedAdsScreen';
 import MessagesScreen from './screens/profile/MessagesScreen';
@@ -33,17 +36,91 @@ import EditAdScreen from './screens/profile/EditAdScreen';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// Alttaki Tab'ları yöneten component
-function MainTabs({ setIsAuthenticated, isAdmin }) {
+// --- YENİ YAPI: HER SEKMEYE ÖZEL BİR STACK OLUŞTURALIM ---
+
+// ANA SAYFA sekmesinin kendi iç navigasyonu (Ana Sayfa -> Alt Kategori -> Seçim Sihirbazı -> İlan Listesi -> İlan Detayı -> Sohbet)
+function HomeStack() {
   return (
-    <Tab.Navigator>
-      <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Ana Sayfa' }} />
-      <Tab.Screen name="AddAd" component={AddAdScreen} options={{ title: 'İlan Ver' }} />
+    <Stack.Navigator>
+      <Stack.Screen name="HomeScreen" component={HomeScreen} options={{ title: 'Ana Sayfa' }} />
+      <Stack.Screen name="SubCategory" component={SubCategoryScreen} />
+      <Stack.Screen name="SelectionScreen" component={SelectionScreen} />
+      <Stack.Screen name="AdList" component={AdListScreen} />
+      <Stack.Screen name="DetailScreen" component={DetailScreen} options={{ title: 'İlan Detayı' }} />
+      <Stack.Screen name="ChatScreen" component={ChatScreen} />
+    </Stack.Navigator>
+  );
+}
+
+// İLAN VER sekmesinin kendi iç navigasyonu (İlan Verme Sihirbazı -> Seçim Sihirbazı)
+function AddAdStack() {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen name="AddAdScreen" component={AddAdScreen} options={{ title: 'İlan Ver' }} />
+      {/* İlan verme içinden de Seçim Sihirbazına gidilebiliyor */}
+      <Stack.Screen name="SelectionScreen" component={SelectionScreen} /> 
+    </Stack.Navigator>
+  );
+}
+
+// PROFİL sekmesinin kendi iç navigasyonu (Profil Ana Menü -> Alt Sayfalar)
+function ProfileStack({ setIsAuthenticated }) {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen name="ProfileScreen" options={{ title: 'Profil' }}>
+        {() => <ProfileScreen setIsAuthenticated={setIsAuthenticated} />}
+      </Stack.Screen>
+      <Stack.Screen name="PublishedAds" component={PublishedAdsScreen} options={{ title: 'Yayındaki İlanlarım' }} />
+      <Stack.Screen name="UnpublishedAds" component={UnpublishedAdsScreen} options={{ title: 'Yayında Olmayanlarım' }} />
+      <Stack.Screen name="Messages" component={MessagesScreen} options={{ title: 'Mesajlarım' }} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Bildirimlerim' }} />
+      <Stack.Screen name="FavoriteAds" component={FavoriteAdsScreen} options={{ title: 'Favori İlanlarım' }} />
+      <Stack.Screen name="FavoriteSearches" component={FavoriteSearchesScreen} options={{ title: 'Favori Aramalarım' }} />
+      <Stack.Screen name="AccountInfo" component={AccountInfoScreen} options={{ title: 'Hesap Bilgilerim' }} />
+      <Stack.Screen name="PhoneNumber" component={PhoneNumberScreen} options={{ title: 'Telefon Numaram' }} />
+      <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Ayarlar' }} />
+      <Stack.Screen name="EditAd" component={EditAdScreen} options={{ title: 'İlanı Düzenle' }} />
+      {/* Profil içinden de ilan detayına ve sohbete gidilebilir (Favorilerden vb.) */}
+      <Stack.Screen name="DetailScreen" component={DetailScreen} options={{ title: 'İlan Detayı' }} />
+      <Stack.Screen name="ChatScreen" component={ChatScreen} />
+    </Stack.Navigator>
+  );
+}
+
+// ADMIN sekmesi (şimdilik tek sayfa)
+function AdminStack() {
+    return (
+        <Stack.Navigator>
+            <Stack.Screen name="AdminScreen" component={AdminScreen} options={{ title: 'Admin Panel' }} />
+        </Stack.Navigator>
+    );
+}
+
+// --- YENİ YAPI: ANA TAB NAVIGATOR (Uygulamanın Kalbi) ---
+function MainTabs({ isAdmin, setIsAuthenticated }) {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false, // Her sekmenin kendi Stack'i başlığı yönetecek
+        tabBarActiveTintColor: theme.accent, // Aktif sekme rengi (mavi)
+        tabBarInactiveTintColor: 'gray', // Pasif sekme rengi
+        tabBarIcon: ({ color, size }) => { // İkonları ekleyelim
+          let iconName;
+          if (route.name === 'HomeStack') iconName = 'home-outline';
+          else if (route.name === 'AddAdStack') iconName = 'plus-circle-outline';
+          else if (route.name === 'AdminStack') iconName = 'shield-account-outline';
+          else if (route.name === 'ProfileStack') iconName = 'account-outline';
+          return <MaterialCommunityIcons name={iconName} size={size} color={color} />;
+        },
+      })}
+    >
+      <Tab.Screen name="HomeStack" component={HomeStack} options={{ title: 'Ana Sayfa' }} />
+      <Tab.Screen name="AddAdStack" component={AddAdStack} options={{ title: 'İlan Ver' }} />
       {isAdmin && (
-        <Tab.Screen name="Admin" component={AdminScreen} options={{ title: 'Admin Panel' }} />
+        <Tab.Screen name="AdminStack" component={AdminStack} options={{ title: 'Admin Panel' }} />
       )}
-      <Tab.Screen name="Profile">
-        {(props) => <ProfileScreen {...props} setIsAuthenticated={setIsAuthenticated} />}
+      <Tab.Screen name="ProfileStack" options={{ title: 'Profil' }}>
+        {(props) => <ProfileStack {...props} setIsAuthenticated={setIsAuthenticated} />}
       </Tab.Screen>
     </Tab.Navigator>
   );
@@ -71,7 +148,7 @@ export default function App() {
       }
     };
     checkAuth();
-  }, []);
+  }, [isAuthenticated]); // isAuthenticated değiştiğinde de kontrol et (çıkış yapınca)
 
   if (isAuthenticated === null) {
     return null; // Yüklenme ekranı
@@ -80,42 +157,14 @@ export default function App() {
   return (
     <NavigationContainer>
       {isAuthenticated ? (
-        // GİRİŞ YAPMIŞ KULLANICI İÇİN NAVİGASYON
-        <Stack.Navigator>
-          <Stack.Screen 
-            name="MainTabs" 
-            options={{ headerShown: false }}
-          >
-            {(props) => <MainTabs {...props} setIsAuthenticated={setIsAuthenticated} isAdmin={isAdmin} />}
-          </Stack.Screen>
-
-          <Stack.Screen name="SubCategory" component={SubCategoryScreen} />
-          <Stack.Screen name="AdList" component={AdListScreen} />
-          
-          {/* YENİ İLAN DETAY EKRANI BURAYA EKLENDİ ✅ */}
-          <Stack.Screen name="DetailScreen" component={DetailScreen} options={{ title: 'İlan Detayı' }} />
-          <Stack.Screen name="ChatScreen" component={ChatScreen} />
-          {/* PROFİL SAYFASININ YENİ EKRANLARI */}
-          <Stack.Screen name="PublishedAds" component={PublishedAdsScreen} options={{ title: 'Yayındaki İlanlarım' }} />
-          <Stack.Screen name="UnpublishedAds" component={UnpublishedAdsScreen} options={{ title: 'Yayında Olmayan İlanlarım' }} />
-          <Stack.Screen name="Messages" component={MessagesScreen} options={{ title: 'Mesajlarım' }} />
-          <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Bildirimlerim' }} />
-          <Stack.Screen name="FavoriteAds" component={FavoriteAdsScreen} options={{ title: 'Favori İlanlarım' }} />
-          <Stack.Screen name="FavoriteSearches" component={FavoriteSearchesScreen} options={{ title: 'Favori Aramalarım' }} />
-          <Stack.Screen name="AccountInfo" component={AccountInfoScreen} options={{ title: 'Hesap Bilgilerim' }} />
-          <Stack.Screen name="PhoneNumber" component={PhoneNumberScreen} options={{ title: 'Telefon Numaram' }} />
-          <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Ayarlar' }} />
-          <Stack.Screen name="EditAd" component={EditAdScreen} options={{ title: 'İlanı Düzenle' }} />
-          <Stack.Screen name="SelectionScreen" component={SelectionScreen} />
-        </Stack.Navigator>
-        
+        // GİRİŞ YAPMIŞ KULLANICI ARTIK DOĞRUDAN SEKMELERİ GÖRÜR
+        <MainTabs isAdmin={isAdmin} setIsAuthenticated={setIsAuthenticated} />
       ) : (
-        // GİRİŞ YAPMAMIŞ KULLANICI İÇİN NAVİGASYON
+        // GİRİŞ YAPMAMIŞ KULLANICI İÇİN ESKİ YAPI (SADECE GİRİŞ/KAYIT EKRANLARI)
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Login">
             {(props) => <LoginScreen {...props} setIsAuthenticated={setIsAuthenticated} setIsAdmin={setIsAdmin} />}
           </Stack.Screen>
-          
           <Stack.Screen name="Register" component={RegisterScreen} />
           <Stack.Screen name="VerificationPending" component={VerificationPendingScreen} />
         </Stack.Navigator>
