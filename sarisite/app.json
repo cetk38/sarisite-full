@@ -27,6 +27,12 @@
     },
     "plugins": [
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "6d2509e3-5531-4067-b5bc-6113d8b5914e"
+      }
+    },
+    "owner": "cetk38"
   }
 }

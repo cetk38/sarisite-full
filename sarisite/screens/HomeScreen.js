@@ -1,9 +1,34 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, TextInput, ActivityIndicator, Image } from 'react-native';
+
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { get } from '../utils/api';
 import theme from '../theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import DynamicFilterBox from './components/DynamicFilterBox';
+
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  FlatList, 
+  TouchableOpacity, 
+  Alert, 
+  TextInput, 
+  ActivityIndicator, 
+  Image, 
+  ScrollView,
+  LayoutAnimation, // <-- YENİ
+  Platform,        // <-- YENİ
+  UIManager        // <-- YENİ
+} from 'react-native';
+// ...
+import LocationFilterPanel from './components/LocationFilterPanel'; // <-- YENİ component (birazdan oluşturacağız)
+
+// Animasyonu Android'de de etkinleştir
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 
 // AdCard component'i (İlan kartı)
 const AdCard = ({ item, navigation }) => (
@@ -48,7 +73,29 @@ export default function HomeScreen({ navigation }) {
       .catch(err => Alert.alert("Hata", "Kategoriler yüklenemedi."))
       .finally(() => setLoadingCategories(false));
   }, []);
+  const [isLocationPanelVisible, setIsLocationPanelVisible] = useState(false); // Panel durumu
 
+  // --- YENİ: HEADER'A İKON EKLEME ---
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity onPress={toggleLocationPanel} style={styles.headerButton}>
+          <MaterialCommunityIcons 
+            name="map-search-outline" // Veya "map-marker-outline"
+            size={26} 
+            color={theme.accent} 
+          />
+          <Text style={styles.headerButtonText}>Konum</Text>
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, isLocationPanelVisible]); // isLocationPanelVisible'a da bağla
+
+  // --- YENİ: "EFSANE ANİMASYON" FONKSİYONU ---
+  const toggleLocationPanel = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); // Animasyon!
+    setIsLocationPanelVisible(!isLocationPanelVisible);
+  };
   // Arama metni değiştiğinde çalışacak fonksiyon
   const handleSearch = (text) => {
     const trimmedText = text.trim(); // Boşlukları temizle
@@ -89,14 +136,16 @@ export default function HomeScreen({ navigation }) {
 
   // --- RENDER EDİLECEK KOMPONENTLER (Ayrı Fonksiyonlar Olarak) ---
   const renderCategoryList = () => (
-      <FlatList
-        ListHeaderComponent={<Text style={styles.header}>Kategoriler</Text>}
-        data={categories}
-        renderItem={({ item }) => <CategoryCard item={item} navigation={navigation} />}
-        keyExtractor={(item) => `cat-${item.id.toString()}`}
-        numColumns={2} // Kategori listesi 2 sütunlu
-        key={'category-list'} // Farklı key prop'u
-      />
+      <>
+        <Text style={styles.header}>Kategoriler</Text>
+        <FlatList
+          data={categories}
+          renderItem={({ item }) => <CategoryCard item={item} navigation={navigation} />}
+          keyExtractor={(item) => `cat-${item.id.toString()}`}
+          numColumns={2} // Kategori listesi 2 sütunlu
+          scrollEnabled={false} // ÖNEMLİ: İç içe scroll'u engelle
+        />
+      </>
   );
 
   const renderSearchResultList = () => (
@@ -114,28 +163,51 @@ export default function HomeScreen({ navigation }) {
 
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="İlanlarda Ara..."
-          value={searchText}
-          onChangeText={handleSearch}
-          clearButtonMode="while-editing" // iOS için
-        />
+      <SafeAreaView style={styles.safeArea}>
+        {/* ARAMA ÇUBUĞU */}
+        <View style={styles.searchContainer}>
+           <TextInput
+            style={styles.searchInput}
+            placeholder="İlanlarda Ara..."
+            value={searchText}
+            onChangeText={handleSearch}
+            clearButtonMode="while-editing"
+          />
+        </View>
 
-        {/* --- KOŞULLU RENDER (İki Ayrı FlatList Kullanımı) --- */}
+        {/* ARAMA SONUÇLARI VEYA ANA EKRAN */}
         {loadingCategories ? (
           <ActivityIndicator style={{ marginTop: 50 }} size="large" color={theme.accent} />
         ) : searchText.trim() !== '' ? (
-          renderSearchResultList() // Arama varsa arama listesini render et
+          renderSearchResultList() // Arama varsa burası çalışır (FlatList kaydırılabilir)
         ) : (
-          renderCategoryList() // Arama yoksa kategori listesini render et
+          // ARAMA YOKSA: Her şey bu ScrollView'un içinde
+          <ScrollView 
+            style={styles.container}
+            keyboardShouldPersistTaps="handled" // Klavyeyi yönetmek için
+          >
+            
+            {/* --- YENİ: ANİMASYONLU KONUM PANELİ (DOĞRU YERDE) --- */}
+            {isLocationPanelVisible && (
+              <LocationFilterPanel 
+                onClose={toggleLocationPanel}
+                onApplyFilters={(filters, filterNames) => {
+                  toggleLocationPanel(); // Paneli kapat
+                  navigation.navigate('AdList', { filters, filterNames });
+                }}
+              />
+            )}
+            
+            {/* --- ESKİ FİLTRE KUTUSU --- */}
+            <DynamicFilterBox />
+            
+            {/* --- KATEGORİ LİSTESİ --- */}
+            {renderCategoryList()}
+            
+          </ScrollView>
         )}
-        {/* --- RENDER BİTTİ --- */}
-      </View>
-    </SafeAreaView>
-  );
+      </SafeAreaView>
+    );
 }
 
 // Stiller
@@ -144,6 +216,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 10,
+  },
+  searchContainer: {
+    padding: 10,
+    backgroundColor: theme.primary,
   },
   searchInput: {
     backgroundColor: 'white',
@@ -186,4 +262,15 @@ const styles = StyleSheet.create({
   adPrice: { fontSize: 16, color: theme.accent, fontWeight: 'bold', marginTop: 4 },
   adOwner: { fontSize: 12, color: '#666', marginTop: 'auto' },
   emptyText: { textAlign: 'center', marginTop: 50, fontSize: 16, color: 'gray' },
+
+  headerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  headerButtonText: {
+    color: theme.accent,
+    fontSize: 16,
+    marginLeft: 4,
+  },
 });

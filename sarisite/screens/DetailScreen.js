@@ -18,36 +18,61 @@ const DetailRow = ({ label, value }) => (
 );
 
 export default function DetailScreen({ route, navigation }) {
-  const { adId } = route.params;
+  const { adId, isAdminReview } = route.params;
   const [adDetails, setAdDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [technicalSpecs, setTechnicalSpecs] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const adPromise = get(`/ads/public/${adId}`);
+        // 1. İlan detaylarını, token'ı ve favori durumunu paralel olarak çek
+        const adPromise = isAdminReview
+           ? get(`/admin/ads/${adId}/details`, true) // Admin ise onaysız ilanı çek
+           : get(`/ads/public/${adId}`); // Normal kullanıcı ise public ilanı çek
+           
         const tokenPromise = AsyncStorage.getItem('token');
-        const favCheckPromise = get(`/favorites/check/${adId}`, true); 
+        
+        const favCheckPromise = isAdminReview
+           ? Promise.resolve({ isFavorite: false }) // Admin modunda favori kontrolüne gerek yok
+           : get(`/favorites/check/${adId}`, true); 
+
         const [adData, token, favStatus] = await Promise.all([adPromise, tokenPromise, favCheckPromise]);
+        
+        // Gelen temel verileri state'e at
         setAdDetails(adData);
         setIsFavorite(favStatus.isFavorite);
 
+        // --- YENİ EKLENEN KISIM: TEKNİK ÖZELLİKLERİ ÇEK ---
+        // Eğer ilanın bir donanım ID'si varsa, teknik özellikleri de getir
+        if (adData.trim_id) {
+            try {
+                const specs = await get(`/specs/${adData.trim_id}`);
+                setTechnicalSpecs(specs); // Veriyi state'e kaydet
+            } catch (specError) {
+                console.log("Bu ilan için teknik özellik bulunamadı veya çekilemedi.", specError);
+                // Buradaki hata ana ekranın açılmasını engellemesin diye sadece logluyoruz
+            }
+        }
+        // ---------------------------------------------------
+
+        // Kullanıcı giriş yapmışsa ID'sini al (butonları gizlemek/göstermek için)
         if (token) {
           const decoded = jwtDecode(token);
           setCurrentUserId(decoded.userId);
         }
       } catch (error) {
-        console.error("İlan detayı alınamadı:", error);
+        console.error("İlan detayı ana verileri alınamadı:", error);
         Alert.alert('Hata', 'İlan detayları yüklenemedi.');
       } finally {
         setLoading(false);
       }
     };
     fetchData();
-  }, [adId]);
+  }, [adId, isAdminReview]); // isAdminReview değişirse de tekrar çalışsın
 
   const formatLabel = (key) => {
     return key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
@@ -94,7 +119,8 @@ export default function DetailScreen({ route, navigation }) {
   }
   // --- YENİ HARİTA AÇMA FONKSİYONU --- ✅
   
-  return (
+
+return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* --- Resim Galerisi --- */}
@@ -124,7 +150,7 @@ export default function DetailScreen({ route, navigation }) {
           {/* Fiyat ve Favori Kalp */}
           <View style={styles.headerRow}>
               <Text style={styles.price}>{adDetails.price} ₺</Text>
-              {currentUserId !== adDetails.user_id && (
+              {!isAdminReview && currentUserId !== adDetails.user_id && (
                   <TouchableOpacity onPress={toggleFavorite}>
                       <MaterialCommunityIcons 
                           name={isFavorite ? "heart" : "heart-outline"} 
@@ -137,18 +163,23 @@ export default function DetailScreen({ route, navigation }) {
           
           {/* Açıklama */}
           <Text style={styles.description}>{adDetails.description}</Text>
-          {/* --- YENİ ADRES BÖLÜMÜ EKLENDİ --- ✅ */}
-          {adDetails.city && (
+          
+          {/* --- Konum Bilgileri (DOĞRU HALİ) --- */}
+          {adDetails.city_name && ( // <-- KONTROLÜ "city_name" OLARAK DEĞİŞTİRDİK
             <>
               <View style={styles.separator} />
               <Text style={styles.sectionTitle}>Konum</Text>
               <Text style={styles.addressText}>
-                {adDetails.city} / {adDetails.district} / {adDetails.neighborhood}
+                {adDetails.city_name} / {adDetails.district_name} / {adDetails.neighbourhood_name}
               </Text>
+              {/* Açık adres (street_address) varsa onu da göster */}
               {adDetails.street_address && (
                 <Text style={styles.streetAddressText}>{adDetails.street_address}</Text>
               )}
-              {/* Sadece koordinat varsa "Haritada Göster" butonunu göster */}
+              
+              {/* EĞER İLAN VERİLİRKEN "MEVCUT KONUMUMU KULLAN" SEÇİLDİYSE
+                (yani latitude ve longitude varsa) O BUTONU GÖSTER
+              */}
               {adDetails.latitude && adDetails.longitude && (
                 <TouchableOpacity 
                   style={styles.mapButton} 
@@ -160,33 +191,64 @@ export default function DetailScreen({ route, navigation }) {
               )}
             </>
           )}
-          {/* --- ADRES BÖLÜMÜ BİTTİ --- */}
+          {/* --- Konum Bitti --- */}
 
-          {/* İlan Detayları */}
+          {/* --- İlan Detayları --- */}
           <View style={styles.separator} />
           <Text style={styles.sectionTitle}>İlan Detayları</Text>
+          <DetailRow label="İlan No" value={adDetails.id} />
+          <DetailRow label="İlan Tarihi" value={new Date(adDetails.created_at).toLocaleDateString('tr-TR')} />
+          {adDetails.brand_name && <DetailRow label="Marka" value={adDetails.brand_name} />}
+          {adDetails.model_name && <DetailRow label="Seri" value={adDetails.model_name} />}
+          {adDetails.variant_name && <DetailRow label="Model" value={adDetails.variant_name} />}
+          {adDetails.trim_name && <DetailRow label="Paket" value={adDetails.trim_name} />}
           <DetailRow label="İlan Sahibi" value={adDetails.owner_name} />
-          {/* ... (Diğer ortak ve dinamik DetailRow'lar) ... */}
+
           {adDetails.details && Object.keys(adDetails.details)
-              // 'boya_degisen' anahtarını hariç tutarak listele
               .filter(key => key !== 'boya_degisen') 
               .map(key => (
                   <DetailRow key={key} label={formatLabel(key)} value={adDetails.details[key]} />
            ))}
 
-          {/* --- BOYA/DEĞİŞEN BÖLÜMÜ (DOĞRU YERDE) --- ✅ */}
+          {/* --- Boya ve Değişen Durumu --- */}
           {adDetails.details?.boya_degisen && Object.keys(adDetails.details.boya_degisen).length > 0 && (
             <>
                 <View style={styles.separator} />
                 <Text style={styles.sectionTitle}>Boya ve Değişen Durumu</Text>
-                {/* Component'i editable={false} prop'u ile çağırıyoruz */}
                 <VehiclePaintStatusSelector 
                     initialStatus={adDetails.details.boya_degisen} 
-                    editable={false} // <-- Tıklamayı engellemek için
+                    editable={false} 
                 />
             </>
           )}
-          {/* --- EKLEME BİTTİ --- */}
+
+          {/* --- YENİ TEKNİK ÖZELLİKLER TABLOSU (DOĞRU YERDE) --- */}
+          {technicalSpecs && Object.keys(technicalSpecs).length > 2 && (
+            <>
+              <View style={styles.separator} />
+              <Text style={styles.sectionTitle}>Teknik Özellikler</Text>
+              
+              <Text style={[styles.sectionTitle, {fontSize: 16, marginTop: 10, color: theme.accent}]}>Performans</Text>
+              {technicalSpecs.motor_tipi && <DetailRow label="Motor Tipi" value={technicalSpecs.motor_tipi} />}
+              {technicalSpecs.beygir_gucu && <DetailRow label="Beygir Gücü" value={`${technicalSpecs.beygir_gucu} HP`} />}
+              {technicalSpecs.tork && <DetailRow label="Tork" value={`${technicalSpecs.tork} Nm`} />}
+              {technicalSpecs.hizlanma_0_100 && <DetailRow label="0-100 km/s" value={`${technicalSpecs.hizlanma_0_100} sn`} />}
+              {technicalSpecs.maksimum_hiz && <DetailRow label="Maksimum Hız" value={`${technicalSpecs.maksimum_hiz} km/s`} />}
+
+              <Text style={[styles.sectionTitle, {fontSize: 16, marginTop: 15, color: theme.accent}]}>Yakıt ve Tüketim</Text>
+              {technicalSpecs.yakit_tuketimi_ortalama && <DetailRow label="Ortalama Tüketim" value={`${technicalSpecs.yakit_tuketimi_ortalama} lt`} />}
+              {technicalSpecs.yakit_tuketimi_sehir_ici && <DetailRow label="Şehir İçi" value={`${technicalSpecs.yakit_tuketimi_sehir_ici} lt`} />}
+              {technicalSpecs.yakit_tuketimi_sehir_disi && <DetailRow label="Şehir Dışı" value={`${technicalSpecs.yakit_tuketimi_sehir_disi} lt`} />}
+              {technicalSpecs.yakit_deposu && <DetailRow label="Depo Hacmi" value={`${technicalSpecs.yakit_deposu} lt`} />}
+
+              <Text style={[styles.sectionTitle, {fontSize: 16, marginTop: 15, color: theme.accent}]}>Ölçüler</Text>
+              {technicalSpecs.bagaj_kapasitesi && <DetailRow label="Bagaj Hacmi" value={`${technicalSpecs.bagaj_kapasitesi} lt`} />}
+              {technicalSpecs.net_agirlik && <DetailRow label="Net Ağırlık" value={`${technicalSpecs.net_agirlik} kg`} />}
+              {technicalSpecs.uzunluk && <DetailRow label="Uzunluk" value={`${technicalSpecs.uzunluk} mm`} />}
+              {technicalSpecs.lastik_olculeri && <DetailRow label="Lastik Ölçüleri" value={`${technicalSpecs.lastik_olculeri} `} />}
+            </>
+          )}
+          {/* -------------------------------------- */}
 
         </View> 
         {/* contentContainer sonu */}
@@ -194,7 +256,7 @@ export default function DetailScreen({ route, navigation }) {
       {/* ScrollView sonu */}
 
       {/* Mesaj Gönder Butonu (ScrollView dışında, en altta sabit) */}
-      {currentUserId !== adDetails.user_id && (
+      {!isAdminReview && currentUserId !== adDetails.user_id && (
         <View style={styles.bottomBar}>
           <TouchableOpacity 
             style={styles.messageButton} 

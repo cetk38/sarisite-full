@@ -49,9 +49,10 @@ export default function SelectionScreen({ route, navigation }) {
           // EĞER HEDEF 'AddAd' İSE (İlan Verme Akışı):
           // Önce 'MainTabs' navigator'ına git, SONRA onun içindeki 'AddAd' sekmesini aç
           // ve parametreleri oraya gönder.
-          navigation.navigate('MainTabs', { 
-            screen: 'AddAd', 
-            params: { filters: newFilters, filterNames: newNames } 
+          navigation.navigate({
+              name: 'AddAdScreen', // Bu, 'AddAdStack' içindeki ekranın adı
+              params: { filters: newFilters, filterNames: newNames },
+              merge: true, // Parametreleri mevcut ekranla birleştir
           });
       } else if (finalScreen === 'AdList') {
           // EĞER HEDEF 'AdList' İSE (Filtreleme Akışı):

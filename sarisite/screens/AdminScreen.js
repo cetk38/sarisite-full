@@ -8,19 +8,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 
 // Her bir ilan kartını oluşturan küçük component
-const AdCard = ({ item, onApprove, onDelete }) => (
+const AdCard = ({ item, onApprove, onDelete, onReview }) => (
   <View style={styles.card}>
     <Text style={styles.cardTitle}>{item.description || 'Açıklama Yok'}</Text>
     <Text>Fiyat: {item.price} ₺</Text>
     <Text>Ekleyen: {item.owner_name}</Text>
     <View style={styles.buttonContainer}>
+      <Button title="İncele" onPress={() => onReview(item.id)} color={'#17a2b8'} />
       <Button title="Onayla" onPress={() => onApprove(item.id)} color={theme.accent} />
       <Button title="Sil" onPress={() => onDelete(item.id)} color={'#dc3545'} />
     </View>
   </View>
-);
+);  
 
-export default function AdminScreen() {
+export default function AdminScreen({ navigation }) {
   // Form State'leri
   const [newCategory, setNewCategory] = useState('');
   const [newBrand, setNewBrand] = useState('');
@@ -85,7 +86,12 @@ const fetchPendingAds = async () => {
       Alert.alert('Hata', 'İlan silinirken bir sorun oluştu.');
     }
   };
-
+  const handleReview = (adId) => {
+  navigation.navigate('DetailScreen', {
+    adId: adId,
+    isAdminReview: true // DetailScreen'e admin olduğunu söylüyoruz
+  });
+  };
   // Form Fonksiyonları
   const handleAddCategory = async () => {
     if (!newCategory) return;
@@ -116,10 +122,18 @@ const fetchPendingAds = async () => {
           ) : pendingAds.length === 0 ? (
             <Text style={{ color: theme.text }}>Onay bekleyen ilan bulunmuyor.</Text>
           ) : (
-            pendingAds.map(ad => <AdCard key={ad.id} item={ad} onApprove={handleApprove} onDelete={handleDelete} />)
+            pendingAds.map(ad => <AdCard key={ad.id} item={ad} onApprove={handleApprove} onDelete={handleDelete} onReview={handleReview} />)
           )}
         </View>
-
+        {/* --- YENİ BÖLÜMÜ BURAYA EKLE --- */}
+         <View style={styles.section}>
+           <Button 
+          title="Tüm İlanları Yönet (Yayındakiler/Kaldırılanlar)" 
+          onPress={() => navigation.navigate('ManageAllAds')}
+          color={theme.accent} // Veya farklı bir renk
+          />
+         </View>
+        {/* --- YENİ BÖLÜM BİTTİ --- */}
         <View style={styles.separator} />
 
         {/* KATEGORİ/MARKA/MODEL EKLEME FORMLARI */}

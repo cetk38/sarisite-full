@@ -5,7 +5,7 @@ import Constants from 'expo-constants';
 // İşletim sistemine göre doğru IP adresini seçen akıllı mantık
 // --- BURAYI DEĞİŞTİR --- ✅
 // 1. Adımda bulduğun IP adresini buraya tırnak içinde yaz:
-const YOUR_COMPUTER_IP = '192.168.1.243'; 
+const YOUR_COMPUTER_IP = '192.168.1.119'; 
 // -----------------------
 
 export const BASE_URL = `http://${YOUR_COMPUTER_IP}:3001/api`;

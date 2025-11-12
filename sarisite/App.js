@@ -32,6 +32,9 @@ import AccountInfoScreen from './screens/profile/AccountInfoScreen';
 import PhoneNumberScreen from './screens/profile/PhoneNumberScreen';
 import SettingsScreen from './screens/profile/SettingsScreen';
 import EditAdScreen from './screens/profile/EditAdScreen';
+import ManageAllAdsScreen from './screens/admin/ManageAllAdsScreen'; // <-- YENİ BUNU EKLE
+import { registerForPushNotificationsAsync } from './utils/notificationHelper'; // <-- YENİ
+import { post } from './utils/api'; // <-- post'u ekle
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -92,6 +95,10 @@ function AdminStack() {
     return (
         <Stack.Navigator>
             <Stack.Screen name="AdminScreen" component={AdminScreen} options={{ title: 'Admin Panel' }} />
+            {/* YENİ EKLENEN EKRANLAR */}
+            <Stack.Screen name="ManageAllAds" component={ManageAllAdsScreen} options={{ title: 'Tüm İlanları Yönet' }} />
+            <Stack.Screen name="DetailScreen" component={DetailScreen} options={{ title: 'İlan Detayı' }} />
+            <Stack.Screen name="ChatScreen" component={ChatScreen} />
         </Stack.Navigator>
     );
 }
@@ -134,21 +141,36 @@ export default function App() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const token = await AsyncStorage.getItem('token');
-        if (token) {
-          const decodedToken = jwtDecode(token);
+        // 1. Önce token'ı hafızadan al
+        const tokenStr = await AsyncStorage.getItem('token');
+        
+        // 2. Eğer giriş yapılmışsa...
+        if (tokenStr) {
+          const decodedToken = jwtDecode(tokenStr);
           setIsAdmin(decodedToken.isAdmin || false);
           setIsAuthenticated(true);
+
+          // --- YENİ: BİLDİRİM İZNİ İSTE VE TOKEN'I SUNUCUYA GÖNDER ---
+          registerForPushNotificationsAsync().then(pushToken => {
+            if (pushToken) {
+              // Token'ı backend'e gönder (sessizce)
+              post('/users/push-token', { token: pushToken }, true)
+                .then(() => console.log("Push Token sunucuya kaydedildi! ✅"))
+                .catch(err => console.log("Push Token kaydedilemedi ❌:", err));
+            }
+          });
+          // ------------------------------------------------------------
+
         } else {
           setIsAuthenticated(false);
         }
       } catch (error) {
-        console.error("Token okunamadı veya geçersiz:", error);
+        console.error("Auth kontrol hatası:", error);
         setIsAuthenticated(false);
       }
     };
     checkAuth();
-  }, [isAuthenticated]); // isAuthenticated değiştiğinde de kontrol et (çıkış yapınca)
+  }, [isAuthenticated]);
 
   if (isAuthenticated === null) {
     return null; // Yüklenme ekranı

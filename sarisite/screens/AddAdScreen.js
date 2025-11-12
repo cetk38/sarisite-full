@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Button, TouchableOpacity, TextInput, Image, ActivityIndicator, Alert, Platform } from 'react-native';
-import { get, post, BASE_URL } from '../utils/api'; // BASE_URL'i de import ediyoruz
+import { get, post, BASE_URL } from '../utils/api';
 import theme from '../theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // Token almak için
-import VehiclePaintStatusSelector from './components/VehiclePaintStatusSelector'; // './' olarak düzeltildi
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import VehiclePaintStatusSelector from './components/VehiclePaintStatusSelector';
 import * as Location from 'expo-location';
+import { Picker } from '@react-native-picker/picker'; // <-- YENİ
 
-// "Otomobil" kategorisi için seçim adımlarını önceden tanımlıyoruz.
+// ... (vehicleFilterSteps objesi aynı kalıyor) ...
 const vehicleFilterSteps = {
   title: 'Marka Seçin',
   endpoint: '/brands',
@@ -36,119 +37,121 @@ const vehicleFilterSteps = {
   }
 };
 
-export default function AddAdScreen({ route, navigation }) {
-  // Adım takibi
-  const [step, setStep] = useState(1);
 
-  // Veri state'leri
+export default function AddAdScreen({ route, navigation }) {
+  const [step, setStep] = useState(1);
   const [mainCategories, setMainCategories] = useState([]);
   const [subCategories, setSubCategories] = useState([]);
   const [dynamicFields, setDynamicFields] = useState([]);
   const [images, setImages] = useState([]);
-
-  // Seçim state'leri
   const [selectedSubCategory, setSelectedSubCategory] = useState(null);
-  const [vehicleSelections, setVehicleSelections] = useState({}); // Marka, model vb. ID'lerini burada tutacağız
-
-  // Form state'leri
+  const [vehicleSelections, setVehicleSelections] = useState({});
   const [commonDetails, setCommonDetails] = useState({ price: '', description: '' });
   const [dynamicDetails, setDynamicDetails] = useState({});
-  
   const [loading, setLoading] = useState(false);
-  const [isUploading, setIsUploading] = useState(false); // Resim yükleme durumu
-  const [paintStatusData, setPaintStatusData] = useState({});//Boya/Değişen verisini tutmak
+  const [isUploading, setIsUploading] = useState(false);
+  const [paintStatusData, setPaintStatusData] = useState({});
+  
+  // --- YENİ KONUM STATE'LERİ ---
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [cities, setCities] = useState([]);
+  const [districts, setDistricts] = useState([]);
+  const [neighborhoods, setNeighborhoods] = useState([]);
+  
+  // ESKİ locationData'yı YENİSİYLE DEĞİŞTİR (Artık ID tutacak)
   const [locationData, setLocationData] = useState({
-      city: '',
-      district: '',
-      neighborhood: '',
-      street_address: '',
+      city_id: '',
+      district_id: '',
+      neighbourhood_id: '',
+      street_address: '', // Bu metin olarak kalacak
       latitude: null,
       longitude: null,
   });
-  const [locationLoading, setLocationLoading] = useState(false); // Konum alınırken loading
+  // --- BİTTİ ---
 
   // 1. Adım için ana kategorileri çek
   useEffect(() => {
     get('/categories/main').then(setMainCategories);
   }, []);
-  // İzin isteme (Hem Galeri hem Konum)
+
+  // 2. Adım: Şehir listesini bir kere çek
+  useEffect(() => {
+    get('/locations/cities').then(setCities);
+  }, []);
+
+  // İzin isteme (Galeri ve Konum)
   useEffect(() => {
     (async () => {
-      // Galeri izni
       if (Platform.OS !== 'web') {
-        const galleryStatus = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (galleryStatus.status !== 'granted') { Alert.alert('İzin Gerekli', 'Galeri izni vermeniz gerekiyor!'); }
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       }
-      // Konum izni
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('İzin Reddedildi', 'İlanınıza konum eklemek için konum izni vermeniz gerekiyor, ancak manuel olarak da girebilirsiniz.');
+        Alert.alert('İzin Reddedildi', 'Konum izni vermeniz gerekiyor.');
       }
     })();
   }, []);
 
-  // --- SİHİRBAZDAN DÖNÜNCE STATE'İ GÜVENİLİR ŞEKİLDE AYARLA --- ✅✅✅
+  // Sihirbazdan dönünce (A4 40 TDI seçilince)
   useEffect(() => {
-    // Hem filters hem de filterNames geldi mi diye kontrol et
     if (route.params?.filters && route.params?.filterNames) { 
       const filters = route.params.filters;
       const names = route.params.filterNames;
-      console.log("Sihirbazdan dönüldü, filtreler:", filters, "İsimler:", names); 
       
-      setVehicleSelections(filters); // ID'leri kaydet
+      setVehicleSelections(filters);
       const subCatId = filters.categoryId;
-      const subCatName = names.categoryName; // İsmi doğrudan al! ✅
+      const subCatName = names.categoryName;
 
-      // Artık arama yapmaya gerek yok! State'i doğrudan ayarla.
       if (subCatId && subCatName) {
         setSelectedSubCategory({ id: subCatId, name: subCatName }); 
-        console.log("Sihirbaz sonrası Alt Kategori state'i ayarlandı:", { id: subCatId, name: subCatName });
-      } else {
-        console.error("Sihirbaz sonrası Kategori ID veya Adı alınamadı!");
-        // Hata durumunda belki Adım 2'ye dönmek daha iyi olabilir
-        setSelectedSubCategory(null);
       }
       
-      // Şimdi dinamik alanları çekebiliriz
       setLoading(true);
       get(`/categories/${subCatId}/fields`)
-        .then(data => {
+        .then(async (data) => {
           setDynamicFields(data);
           const initialDynamicState = {};
           data.forEach(field => { initialDynamicState[field.field_name] = ''; });
+
+          if (filters.trimId) {
+            try {
+              const specs = await get(`/specs/${filters.trimId}`);
+              for (const key in specs) {
+                 if (initialDynamicState.hasOwnProperty(key) && specs[key] != null) {
+                     initialDynamicState[key] = String(specs[key]);
+                 }
+              }
+            } catch (error) {
+              console.log("Teknik veri otomatik doldurulamadı:", error);
+            }
+          }
           setDynamicDetails(initialDynamicState);
         })
-        .catch(() => Alert.alert('Hata', '...'))
-        .finally(() => { setLoading(false); setStep(3); }); // Resim adımına geç
+        .catch(() => Alert.alert('Hata', 'Alanlar yüklenemedi.'))
+        .finally(() => { setLoading(false); setStep(3); });
     }
-  }, [route.params?.filters, route.params?.filterNames]); // Sadece bu parametreler değişince çalışsın
-  // --- DÜZELTME BİTTİ ---
+  }, [route.params?.filters, route.params?.filterNames]);
 
-  // Ana kategori seçildiğinde alt kategorileri çek
+  // --- KATEGORİ SEÇİM FONKSİYONLARI (Aynı) ---
   const handleMainCategorySelect = (category) => {
     setLoading(true);
     get(`/categories/sub/${category.id}`)
       .then(setSubCategories)
       .finally(() => { setLoading(false); setStep(2); });
   };
-
-  // Alt kategori seçildiğinde AKILLI YÖNLENDİRME YAP ✅
   const handleSubCategorySelect = (category) => {
     setSelectedSubCategory(category);
-    setDynamicFields([]); // Önceki seçimden kalan alanları temizle
+    setDynamicFields([]);
     setDynamicDetails({});
-
     if (category.name === 'Otomobil') {
-      // Eğer Otomobil seçildiyse, seçim sihirbazını başlat
       navigation.navigate('SelectionScreen', {
         ...vehicleFilterSteps,
         currentFilters: { categoryId: category.id },
         filterNames: { categoryName: category.name },
         queryParam: { categoryId: category.id },
-        finalScreen: 'AddAd' // Bittiğinde buraya geri dön
+        finalScreen: 'AddAd'
       });
     } else {
-      // Diğer kategoriler için (şimdilik) direkt resim adımına geç
       get(`/categories/${category.id}/fields`).then(data => {
         setDynamicFields(data);
         const initialDynamicState = {};
@@ -160,11 +163,6 @@ export default function AddAdScreen({ route, navigation }) {
   };
   
   const pickImages = async () => {
-    const { status } = await ImagePicker.getMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('İzin Gerekli', 'Galeriye erişim izni verilmemiş.');
-      return;
-    }
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsMultipleSelection: true,
@@ -175,47 +173,84 @@ export default function AddAdScreen({ route, navigation }) {
       setImages(result.assets.map(asset => asset.uri));
     }
   };
-  // Boya/Değişen component'inden gelen veriyi state'e kaydet ✅
+  
   const handlePaintStatusChange = (status) => {
     setPaintStatusData(status);
   };
-  // YENİ: Konum Alma Fonksiyonu ✅
+
+  // --- YENİ KONUM SEÇİM FONKSİYONLARI ---
+  const handleCitySelect = (cityId) => {
+      setLocationData(prev => ({
+          ...prev,
+          city_id: cityId,
+          district_id: '',
+          neighbourhood_id: '',
+      }));
+      setDistricts([]);
+      setNeighborhoods([]);
+      if (cityId) {
+          get(`/locations/districts?cityId=${cityId}`).then(setDistricts);
+      }
+  };
+  const handleDistrictSelect = (districtId) => {
+      setLocationData(prev => ({
+          ...prev,
+          district_id: districtId,
+          neighbourhood_id: '',
+      }));
+      setNeighborhoods([]);
+      if (districtId) {
+          get(`/locations/neighborhoods?districtId=${districtId}`).then(setNeighborhoods);
+      }
+  };
+  // --- BİTTİ ---
+
+  // --- MEVCUT KONUMU KULLAN (HİBRİT PLANA GÖRE GÜNCELLENDİ) ---
   const handleGetLocation = async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
           Alert.alert('İzin Reddedildi', 'Konum izni verilmedi.');
           return;
       }
-
       setLocationLoading(true);
       try {
-          // Yüksek doğrulukta konumu almayı dene
           let location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+          const lat = location.coords.latitude;
+          const lon = location.coords.longitude;
+
+          // 1. Koordinatları state'e kaydet (Backend'e göndermek için)
           setLocationData(prev => ({
               ...prev,
-              latitude: location.coords.latitude,
-              longitude: location.coords.longitude,
+              latitude: lat,
+              longitude: lon,
           }));
-          Alert.alert('Başarılı', 'Konum bilgisi alındı!');
 
-          // --- Opsiyonel: Reverse Geocoding (Adresi Otomatik Doldurma) ---
-          // let addressResult = await Location.reverseGeocodeAsync({
-          //     latitude: location.coords.latitude,
-          //     longitude: location.coords.longitude,
-          // });
-          // if (addressResult && addressResult.length > 0) {
-          //     const addr = addressResult[0];
-          //     setLocationData(prev => ({
-          //         ...prev,
-          //         city: addr.city || '',
-          //         district: addr.subregion || '', // subregion ilçeyi verebilir
-          //         neighborhood: addr.district || '', // district mahalleyi verebilir
-          //         street_address: `${addr.streetNumber || ''} ${addr.street || ''}`.trim(),
-          //     }));
-          //     Alert.alert('Adres Bulundu!', 'Adres bilgileriniz otomatik dolduruldu.');
-          // }
-          // --- Bitti ---
-
+          // 2. Adresi bulmak için koordinatları Google/OpenCage yerine Expo'ya sor (REVERSE GEOCODING)
+          let addressResult = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon });
+          
+          if (addressResult && addressResult.length > 0) {
+              const addr = addressResult[0];
+              const cityName = addr.city || addr.subregion; // Bazen 'city' null gelir, 'subregion' (il) olur
+              const districtName = addr.district || addr.subregion; // Bazen 'district' (ilçe) null gelir
+              
+              // 3. Picker'ları otomatik doldurmak için ID'leri bul
+              // (Bu kısım için backend'e "isimden ID bul" rotası eklemek en temizi olur,
+              // şimdilik sadece metinleri state'e basıyoruz)
+              
+              // TODO: Backend'e /locations/find?city=Kayseri&district=Talas gibi bir rota ekleyip
+              // city_id ve district_id'yi çekmek en sağlıklısı olur.
+              // Şimdilik sadece metinleri dolduralım:
+              setLocationData(prev => ({
+                ...prev,
+                street_address: `${addr.streetNumber || ''} ${addr.street || ''}`.trim(),
+                // Not: city_id ve district_id'yi dolduramadık, çünkü elimizde isim var, ID yok.
+                // Bu yüzden kullanıcıya Picker'ları manuel seçtirtebiliriz veya
+                // backend'e "isimden-id-bul" rotası ekleyebiliriz.
+              }));
+              Alert.alert('Konum Bulundu!', `Konumunuz: ${cityName}, ${districtName}. İlanınıza eklendi.`);
+          } else {
+            Alert.alert('Başarılı', 'Koordinatlarınız alındı ancak adres detayı bulunamadı.');
+          }
       } catch (error) {
           console.error("Konum alınırken hata:", error);
           Alert.alert('Hata', 'Konum bilgisi alınamadı.');
@@ -224,15 +259,14 @@ export default function AddAdScreen({ route, navigation }) {
       }
   };
 
-  // İLANI GÖNDERME FONKSİYONU GÜNCELLENDİ ✅
+  // --- İLANI GÖNDER (YENİ KONUM YAPISINA GÖRE GÜNCELLENDİ) ---
   const submitAd = async () => {
-    const subCategoryId = selectedSubCategory?.id;
     if (images.length === 0) { Alert.alert('Hata', 'Lütfen en az bir resim seçin.'); setStep(3); return; }
 
-    setLoading(true); // Genel yükleme başladı
-    setIsUploading(true); // Resim yükleme başladı
-
-    // --- 1. Adım: Resimleri Cloudinary'ye Yükle ---
+    setLoading(true);
+    setIsUploading(true);
+    
+    // 1. Resimleri Yükle (Bu kısım aynı)
     let uploadedImageUrls = [];
     try {
       const formData = new FormData();
@@ -241,7 +275,7 @@ export default function AddAdScreen({ route, navigation }) {
         const fileName = uriParts[uriParts.length - 1];
         let fileType = uri.split('.').pop();
         
-        formData.append('images', { // Backend'deki upload.array('images',...) ile aynı isim olmalı
+        formData.append('images', {
           uri: Platform.OS === 'android' ? uri : uri.replace('file://', ''),
           name: fileName || `photo_${index}.${fileType || 'jpg'}`,
           type: `image/${fileType || 'jpeg'}`,
@@ -251,68 +285,52 @@ export default function AddAdScreen({ route, navigation }) {
       const token = await AsyncStorage.getItem('token');
       if (!token) throw new Error('Token bulunamadı');
 
-      console.log("Resim yükleme isteği gönderiliyor..."); // DEBUG
-      const uploadResponse = await fetch(`${BASE_URL}/upload`, { // BASE_URL'i api.js'den aldık
+      const uploadResponse = await fetch(`${BASE_URL}/upload`, {
           method: 'POST',
-          headers: {
-              'Authorization': `Bearer ${token}`,
-              // 'Content-Type': 'multipart/form-data' fetch tarafından otomatik ayarlanır
-          },
+          headers: { 'Authorization': `Bearer ${token}` },
           body: formData,
       });
 
-      console.log("Upload Response Status:", uploadResponse.status); // DEBUG
-      const uploadResultText = await uploadResponse.text(); // Önce text olarak alalım
-      console.log("Upload Response Text:", uploadResultText); // DEBUG
-
       if (!uploadResponse.ok) {
-        // Hata mesajını parse etmeye çalışalım
+        const errorText = await uploadResponse.text();
         let errorMessage = 'Resimler yüklenemedi.';
-        try {
-            const errorData = JSON.parse(uploadResultText);
-            errorMessage = errorData.message || errorMessage;
-        } catch (parseError) {
-             console.error("Upload response parse edilemedi:", parseError)
-        }
+        try { errorMessage = JSON.parse(errorText).message || errorMessage; } catch (e) {}
         throw new Error(errorMessage);
       }
-
-      // Başarılıysa JSON olarak parse et
-       const uploadResult = JSON.parse(uploadResultText);
+       const uploadResult = await uploadResponse.json();
        if (!uploadResult.imageUrls || uploadResult.imageUrls.length === 0) {
            throw new Error('Sunucudan geçerli resim URL\'leri alınamadı.');
        }
-      uploadedImageUrls = uploadResult.imageUrls; // Cloudinary URL'lerini aldık!
-      console.log("Yüklenen Resim URL'leri:", uploadedImageUrls); // DEBUG
-
+      uploadedImageUrls = uploadResult.imageUrls;
     } catch (uploadError) {
       console.error("Resim yükleme hatası:", uploadError);
       Alert.alert('Resim Yükleme Hatası', `Resimler yüklenirken bir sorun oluştu: ${uploadError.message}`);
       setIsUploading(false);
       setLoading(false);
-      return; // Hata varsa ilanı gönderme
+      return;
     }
-    setIsUploading(false); // Resim yükleme bitti
+    setIsUploading(false);
 
-    // --- 2. Adım: İlanı Gönder ---
+    // --- 2. İlanı Gönder (finalData GÜNCELLENDİ) ---
     const finalData = {
-      categoryId: subCategoryId,
+      categoryId: selectedSubCategory?.id,
       ...vehicleSelections,
       price: Number(commonDetails.price),
       description: commonDetails.description,
       details: {
-          ...dynamicDetails, // kilometre, vites_tipi vb.
-          boya_degisen: paintStatusData // Seçiciden gelen {on_kaput: 'degisen', ...}
+          ...dynamicDetails,
+          boya_degisen: paintStatusData
       },
-      image_urls: uploadedImageUrls, // <-- Artık Cloudinary URL'leri gönderiliyor ✅
-      // Yeni Konum Verileri ✅
-      city: locationData.city,
-      district: locationData.district,
-      neighborhood: locationData.neighborhood,
+      image_urls: uploadedImageUrls,
+      
+      // --- YENİ KONUM VERİLERİ (ID'ler ve Metinler) ---
+      city_id: locationData.city_id,
+      district_id: locationData.district_id,
+      neighbourhood_id: locationData.neighbourhood_id,
       street_address: locationData.street_address,
       latitude: locationData.latitude,
       longitude: locationData.longitude,
-
+      // ---------------------------------------------
     };
 
     console.log("Sunucuya Gönderilecek İlan Verisi:", JSON.stringify(finalData, null, 2));
@@ -321,7 +339,18 @@ export default function AddAdScreen({ route, navigation }) {
       const res = await post('/ads', finalData, true);
       if (res.ok) {
         Alert.alert('Başarılı', 'İlanınız onaya gönderildi.', [
-          { text: 'Tamam', onPress: () => { /* ... (Form sıfırlama ve yönlendirme aynı) ... */ } }
+          { text: 'Tamam', onPress: () => { 
+              // Formu sıfırla ve ana sayfaya dön
+              setStep(1);
+              setImages([]);
+              setCommonDetails({ price: '', description: '' });
+              setDynamicDetails({});
+              setLocationData({ city_id: '', district_id: '', neighbourhood_id: '', street_address: '', latitude: null, longitude: null });
+              setVehicleSelections({});
+              setSelectedSubCategory(null);
+              navigation.navigate('HomeStack');
+            } 
+          }
         ]);
       } else {
         Alert.alert('Hata', res.data.message || 'İlan gönderilemedi.');
@@ -330,50 +359,48 @@ export default function AddAdScreen({ route, navigation }) {
       console.error("İlan gönderme hatası:", error);
       Alert.alert('Hata', 'İlan gönderilirken bir sunucu hatası oluştu.');
     } finally {
-      setLoading(false); // Genel yükleme bitti
+      setLoading(false);
     }
   };
-  // --- SUBMITAD BİTTİ ---
-  // İleri butonuna basıldığında çalışacak fonksiyon (Adım 3 için - TEKRAR KONTROL EDİLDİ) ✅
-  const handleNextFromImages = () => {
-      console.log("İleri (Adım 3): Seçilen Kategori Adı:", selectedSubCategory?.name); // DEBUG
-      console.log("Koşul (selectedSubCategory?.name === 'Otomobil'):", selectedSubCategory?.name === 'Otomobil'); // DEBUG
-      setStep(selectedSubCategory?.name === 'Otomobil' ? 4 : 5); // State'e güvenerek yönlendir
+  
+  // Formdaki bir alanı güncellemek için yardımcı fonksiyon
+  const handleInputChange = (field, value, isDynamic = false) => {
+    if (isDynamic) {
+      setDynamicDetails(prev => ({ ...prev, [field]: value }));
+    } else {
+      setCommonDetails(prev => ({ ...prev, [field]: value }));
+    }
   };
-  // Geri tuşu mantığını 5 adıma göre ve koşullu Adım 4'e göre ayarla
+
+  // --- Navigasyon Fonksiyonları (Aynı) ---
+  const handleNextFromImages = () => {
+      setStep(selectedSubCategory?.name === 'Otomobil' ? 4 : 5);
+  };
   const goBack = () => {
     setStep(prev => {
-        if (prev === 5) { // Son detaylardan geri
-            // Eğer Otomobil seçiliyse Adım 4'e (Boya), değilse Adım 3'e (Resim) dön
-            return selectedSubCategory?.name === 'Otomobil' ? 4 : 3;
-        } else if (prev === 4) { // Boya adımından geri
-            return 3; // Resim adımına dön
-        } else if (prev === 3) { // Resim adımından geri
-            return 2; // Alt kategoriye dön
-        } else if (prev === 2) { // Alt kategoriden geri
-            return 1; // Ana kategoriye dön
-        }
-        return 1; // En başa dön
+        if (prev === 5) { return selectedSubCategory?.name === 'Otomobil' ? 4 : 3; }
+        if (prev === 4) { return 3; }
+        if (prev === 3) { return 2; }
+        if (prev === 2) { return 1; }
+        return 1;
     });
   };
-  // İleri butonuna basıldığında çalışacak fonksiyon (Adım 3 için - TEKRAR KONTROL EDİLDİ) ✅
   
-  // Yüklenme göstergesi
   if (loading) {
     return (
-      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.primary}}>
+      <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={theme.accent} />
+        {isUploading && <Text style={styles.loadingText}>Resimler yükleniyor...</Text>}
       </View>
     );
   }
 
+  // --- JSX (RENDER KISMI) ---
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.primary }}>
       <ScrollView contentContainerStyle={styles.container}>
-        {/* Adım sayısını 5 olarak güncelledik */}
         <Text style={styles.header}>Yeni İlan Ekle (Adım {step}/5)</Text>
 
-        {/* Geri butonu artık 5 adımı da destekliyor */}
         {step > 1 && <Button title="< Geri" onPress={goBack} />}
 
         {/* Adım 1: Ana Kategori Seçimi */}
@@ -434,45 +461,107 @@ export default function AddAdScreen({ route, navigation }) {
           </View>
         )}
         
-        {/* --- ADIM 5: SON DETAYLAR (Eski Adım 4) --- ✅ */}
-        {step === 5 && ( // Artık son adım 5
+        {/* --- ADIM 5 (KONUM BÖLÜMÜ GÜNCELLENDİ) --- */}
+        {step === 5 && (
           <View>
             <Text style={styles.stepTitle}>Son olarak ilan detaylarını girin</Text>
             
             <Text style={styles.label}>Fiyat (₺)</Text>
-            <TextInput style={styles.input} value={commonDetails.price} onChangeText={text => setCommonDetails(p => ({...p, price: text}))} keyboardType="numeric" />
+            <TextInput style={styles.input} value={commonDetails.price} onChangeText={text => handleInputChange('price', text)} keyboardType="numeric" />
             
             <Text style={styles.label}>Açıklama</Text>
-            <TextInput style={styles.input} value={commonDetails.description} onChangeText={text => setCommonDetails(p => ({...p, description: text}))} multiline />
+            <TextInput style={styles.input} value={commonDetails.description} onChangeText={text => handleInputChange('description', text)} multiline />
 
-            {/* Dinamik Alanlar (Kilometre, Model Yılı vb.) */}
-            {dynamicFields.map(field => (
-              <View key={field.field_name}>
-                <Text style={styles.label}>{field.field_label}</Text>
-                <TextInput 
-                  style={styles.input}
-                  value={dynamicDetails[field.field_name] || ''} 
-                  onChangeText={text => setDynamicDetails(p => ({...p, [field.field_name]: text}))}
-                  keyboardType={field.field_type === 'number' ? 'numeric' : 'default'}
-                  placeholder={field.field_label}
-                />
-              </View>
-            ))}
-            {/* --- YENİ KONUM ALANLARI --- */}
+            {/* Dinamik Alanlar (Akıllı Render) */}
+            {dynamicFields.map(field => {
+              // ----- VİTES TİPİ İSE PICKER GÖSTER -----
+              if (field.field_name === 'vites_tipi') {
+                return (
+                  <View key={field.field_name}>
+                    <Text style={styles.label}>{field.field_label}</Text>
+                    <View style={styles.pickerContainer}> 
+                      <Picker
+                        selectedValue={dynamicDetails[field.field_name] || ''}
+                        onValueChange={value => handleInputChange(field.field_name, value, true)}
+                      >
+                        <Picker.Item label="Vites Tipi Seçiniz..." value="" />
+                        <Picker.Item label="Manuel" value="Manuel" />
+                        <Picker.Item label="Otomatik" value="Otomatik" />
+                        <Picker.Item label="Yarı Otomatik" value="Yarı Otomatik" />
+                      </Picker>
+                    </View>
+                  </View>
+                );
+              }
+              
+              // ----- DİĞER TÜM ALANLAR İÇİN TEXTINPUT GÖSTER -----
+              return (
+                <View key={field.field_name}>
+                  <Text style={styles.label}>{field.field_label}</Text>
+                  <TextInput 
+                    style={styles.input}
+                    value={String(dynamicDetails[field.field_name] || '')} 
+                    onChangeText={text => handleInputChange(field.field_name, text, true)}
+                    keyboardType={field.field_type === 'number' ? 'numeric' : 'default'}
+                    placeholder={field.field_label}
+                  />
+                </View>
+              );
+            })}
+            
+            {/* --- YENİ KONUM ALANLARI (PICKER İLE) --- */}
             <View style={styles.separator} />
             <Text style={styles.sectionTitle}>Konum Bilgileri</Text>
             
             <Text style={styles.label}>Şehir</Text>
-            <TextInput style={styles.input} value={locationData.city} onChangeText={text => setLocationData(p => ({...p, city: text}))} placeholder="İlanın bulunduğu şehir" />
-            
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={locationData.city_id}
+                onValueChange={(itemValue) => handleCitySelect(itemValue)}
+              >
+                <Picker.Item label="İl Seçiniz..." value="" />
+                {cities.map(city => (
+                  <Picker.Item key={city.id} label={city.name} value={city.id} />
+                ))}
+              </Picker>
+            </View>
+
             <Text style={styles.label}>İlçe</Text>
-            <TextInput style={styles.input} value={locationData.district} onChangeText={text => setLocationData(p => ({...p, district: text}))} placeholder="İlanın bulunduğu ilçe" />
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={locationData.district_id}
+                onValueChange={(itemValue) => handleDistrictSelect(itemValue)}
+                enabled={districts.length > 0}
+              >
+                <Picker.Item label="İlçe Seçiniz..." value="" />
+                {districts.map(dist => (
+                  <Picker.Item key={dist.id} label={dist.name} value={dist.id} />
+                ))}
+              </Picker>
+            </View>
 
             <Text style={styles.label}>Mahalle</Text>
-            <TextInput style={styles.input} value={locationData.neighborhood} onChangeText={text => setLocationData(p => ({...p, neighborhood: text}))} placeholder="İlanın bulunduğu mahalle" />
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={locationData.neighbourhood_id}
+                onValueChange={(itemValue) => setLocationData(prev => ({...prev, neighbourhood_id: itemValue}))}
+                enabled={neighborhoods.length > 0}
+              >
+                <Picker.Item label="Mahalle Seçiniz..." value="" />
+                {neighborhoods.map(hood => (
+                  <Picker.Item key={hood.id} label={hood.name} value={hood.id} />
+                ))}
+              </Picker>
+            </View>
 
             <Text style={styles.label}>Açık Adres (Opsiyonel)</Text>
-            <TextInput style={styles.input} value={locationData.street_address} onChangeText={text => setLocationData(p => ({...p, street_address: text}))} placeholder="Cadde, sokak, no vb." multiline />
+            <TextInput 
+              style={styles.input} 
+              value={locationData.street_address} 
+              onChangeText={text => setLocationData(p => ({...p, street_address: text}))} 
+              placeholder="Cadde, sokak, no vb." 
+              multiline 
+            />
             
             <TouchableOpacity 
                 style={[styles.locationButton, locationLoading && styles.locationButtonDisabled]} 
@@ -488,6 +577,7 @@ export default function AddAdScreen({ route, navigation }) {
                     </>
                 )}
             </TouchableOpacity>
+            {/* --- KONUM BÖLÜMÜ BİTTİ --- */}
 
             <View style={{marginTop: 20}}>
               <Button title="İlanı Gönder" onPress={submitAd} color={theme.accent} /> 
@@ -499,7 +589,7 @@ export default function AddAdScreen({ route, navigation }) {
   );
 }
 
-// Stillerde değişiklik yok
+// Stiller
 const styles = StyleSheet.create({
   container: { padding: 16, paddingBottom: 50 },
   header: { fontSize: 24, fontWeight: 'bold', color: theme.text, marginBottom: 20, textAlign: 'center' },
@@ -510,36 +600,25 @@ const styles = StyleSheet.create({
   imagePreviewContainer: { flexDirection: 'row', flexWrap: 'wrap' },
   previewImage: { width: 80, height: 80, borderRadius: 8, margin: 4 },
   label: { fontWeight: 'bold', marginTop: 16, marginBottom: 4, color: theme.text },
-  input: { backgroundColor: '#fff', padding: 12, borderRadius: 8, marginBottom: 8 },
-  separator: { height: 1, backgroundColor: '#e0e0e0', marginVertical: 24, }, // Yeni stil
-  sectionTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 16, }, // Yeni stil
-  locationButton: { // Yeni stil
-    flexDirection: 'row',
-    backgroundColor: '#28a745', // Yeşil renk
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
+  input: { backgroundColor: '#fff', padding: 12, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: '#ddd' },
+  separator: { height: 1, backgroundColor: '#e0e0e0', marginVertical: 24, },
+  sectionTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 16, },
+  locationButton: { flexDirection: 'row', backgroundColor: '#28a745', padding: 15, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginTop: 16, },
+  locationButtonDisabled: { backgroundColor: '#a0a0a0', },
+  locationButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold', },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.primary },
+  loadingText: { marginTop: 10, fontSize: 16, color: theme.text },
+  // YENİ/GÜNCELLENEN STİLLER
+  pickerContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
     justifyContent: 'center',
-    marginTop: 16,
+    marginBottom: 8,
   },
-   locationButtonDisabled: { // Yeni stil
-       backgroundColor: '#a0a0a0',
-   },
-  locationButtonText: { // Yeni stil
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  
-  loadingContainer: { // Yeni stil
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: theme.primary,
-  },
-  loadingText: { // Yeni stil
-    marginTop: 10,
-    fontSize: 16,
-    color: theme.text,
+  // Picker stili (iç) - iOS için yüksekliği kaldırdık
+  picker: {
+    // height: 50, // Bu satır iOS'ta taşma yapıyordu, kaldırdık
   },
 });

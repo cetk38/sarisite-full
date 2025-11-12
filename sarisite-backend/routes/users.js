@@ -48,5 +48,24 @@ router.get('/me/ads', authenticateToken, async (req, res) => {
   }
 });
 // --- YENİ KISIM BİTTİ ---
+// YENİ: Kullanıcının Push Token'ını kaydet/güncelle
+router.post('/push-token', authenticateToken, async (req, res) => {
+  const { token } = req.body;
+  const userId = req.user.userId;
 
+  if (!token) {
+    return res.status(400).json({ message: 'Token gerekli.' });
+  }
+
+  try {
+    await pool.query(
+      'UPDATE users SET push_token = $1 WHERE id = $2',
+      [token, userId]
+    );
+    res.json({ message: 'Push token başarıyla kaydedildi.' });
+  } catch (err) {
+    console.error('Push token kaydedilirken hata:', err);
+    res.status(500).json({ message: 'Token kaydedilemedi.' });
+  }
+});
 module.exports = router;

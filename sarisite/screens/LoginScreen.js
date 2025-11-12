@@ -5,6 +5,7 @@ import { post } from '../utils/api';
 import theme from '../theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { jwtDecode } from 'jwt-decode'; // <-- Kütüphaneyi import ettik
+import { registerForPushNotificationsAsync } from '../utils/notificationHelper';
 
 export default function LoginScreen({ navigation, setIsAuthenticated, setIsAdmin }) { // setIsAdmin prop'u burada
   const [email, setEmail] = useState('');
@@ -34,7 +35,15 @@ export default function LoginScreen({ navigation, setIsAuthenticated, setIsAdmin
           setIsAdmin(false); // Herhangi bir hata olursa, kullanıcı admin değildir
         }
         // --- YENİ EKLENEN KISIM SONU ---
-
+        // --- YENİ: GİRİŞ BAŞARILI OLUNCA TOKEN'I GÖNDER ---
+        registerForPushNotificationsAsync().then(pushToken => {
+            if (pushToken) {
+              post('/users/push-token', { token: pushToken }, true)
+               .catch(err => console.log("Login sonrası token hatası:", err));
+            }
+        });
+        // --------------------------------------------------
+        
         Alert.alert('Başarılı', 'Giriş yapıldı');
         setIsAuthenticated(true); // Giriş yapıldığını App.js'e bildiriyoruz
 

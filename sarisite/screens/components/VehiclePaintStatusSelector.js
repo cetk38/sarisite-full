@@ -17,20 +17,24 @@ const STATUS_OPTIONS = {
 const ALL_STATUSES = ['original', 'boyali', 'lokal_boyali', 'degisen'];
 
 // Araç parçalarının isimleri ve ekrandaki yaklaşık pozisyonları/boyutları
-// BU KISIM RESMİNE GÖRE AYARLANMALI! (top, left, width, height değerleri)
+// BU DİZİNİN TAMAMINI KOPYALA VE ESKİSİYLE DEĞİŞTİR:
 const CAR_PARTS = [
-  { key: 'on_kaput', label: 'Ön Kaput', style: { top: '15%', left: '30%', width: '40%', height: '15%' } },
-  { key: 'tavan', label: 'Tavan', style: { top: '30%', left: '30%', width: '40%', height: '15%'} },
-  { key: 'arka_kaput', label: 'Arka Kaput (Bagaj)', style: { top: '45%', left: '30%', width: '40%', height: '15%'} },
-  { key: 'sol_on_camurluk', label: 'Sol Ön Çamurluk', style: { top: '15%', left: '10%', width: '20%', height: '15%' } },
-  { key: 'sol_on_kapi', label: 'Sol Ön Kapı', style: { top: '30%', left: '10%', width: '20%', height: '15%' } },
-  { key: 'sol_arka_kapi', label: 'Sol Arka Kapı', style: { top: '45%', left: '10%', width: '20%', height: '15%' } },
-  { key: 'sol_arka_camurluk', label: 'Sol Arka Çamurluk', style: { top: '60%', left: '10%', width: '20%', height: '15%' } },
-  { key: 'sag_on_camurluk', label: 'Sağ Ön Çamurluk', style: { top: '15%', left: '70%', width: '20%', height: '15%' } },
-  { key: 'sag_on_kapi', label: 'Sağ Ön Kapı', style: { top: '30%', left: '70%', width: '20%', height: '15%' } },
-  { key: 'sag_arka_kapi', label: 'Sağ Arka Kapı', style: { top: '45%', left: '70%', width: '20%', height: '15%' } },
-  { key: 'sag_arka_camurluk', label: 'Sağ Arka Çamurluk', style: { top: '60%', left: '70%', width: '20%', height: '15%' } },
-  // Tamponları da ekleyebiliriz...
+  // --- ORTA BÖLÜM (ÜSTTEN GÖRÜNÜM) ---
+  { key: 'on_kaput', label: 'Ön Kaput', style: { top: '35%', left: '28%', width: '44%', height: '13%' } },
+  { key: 'tavan', label: 'Tavan', style: { top: '48%', left: '28%', width: '44%', height: '13%'} },
+  { key: 'arka_kaput', label: 'Arka Kaput (Bagaj)', style: { top: '61%', left: '28%', width: '44%', height: '10%'} },
+
+  // --- ÜST BÖLÜM (SAĞ TARAF) ---
+  { key: 'sag_on_camurluk', label: 'Sağ Ön Çamurluk', style: { top: '10%', left: '12%', width: '20%', height: '15%' } },
+  { key: 'sag_on_kapi', label: 'Sağ Ön Kapı', style: { top: '10%', left: '33%', width: '18%', height: '15%' } },
+  { key: 'sag_arka_kapi', label: 'Sağ Arka Kapı', style: { top: '10%', left: '52%', width: '18%', height: '15%' } },
+  { key: 'sag_arka_camurluk', label: 'Sağ Arka Çamurluk', style: { top: '10%', left: '71%', width: '20%', height: '15%' } },
+  
+  // --- ALT BÖLÜM (SOL TARAF) ---
+  { key: 'sol_on_camurluk', label: 'Sol Ön Çamurluk', style: { top: '75%', left: '12%', width: '20%', height: '15%' } },
+  { key: 'sol_on_kapi', label: 'Sol Ön Kapı', style: { top: '75%', left: '33%', width: '18%', height: '15%' } },
+  { key: 'sol_arka_kapi', label: 'Sol Arka Kapı', style: { top: '75%', left: '52%', width: '18%', height: '15%' } },
+  { key: 'sol_arka_camurluk', label: 'Sol Arka Çamurluk', style: { top: '75%', left: '71%', width: '20%', height: '15%' } },
 ];
 
 export default function VehiclePaintStatusSelector({ initialStatus = {}, onStatusChange }) {

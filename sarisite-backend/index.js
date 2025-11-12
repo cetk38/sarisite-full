@@ -19,6 +19,9 @@ const notificationRoutes = require('./routes/notifications');
 const variantRoutes = require('./routes/variants');
 const trimRoutes = require('./routes/trims');
 const uploadRoutes = require('./routes/upload');
+const specsRoutes = require('./routes/specs'); // <-- YENİ
+const locationsRoutes = require('./routes/locations'); // <-- YENİ
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -41,6 +44,8 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/variants', variantRoutes);
 app.use('/api/trims', trimRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/specs', specsRoutes); // <-- YENİ
+app.use('/api/locations', locationsRoutes); // <-- YENİ
 // Health check
 app.get('/', (req, res) => {
   res.send('🚀 Sarisite Backend Çalışıyor!');
